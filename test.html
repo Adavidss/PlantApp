@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test</title>
+</head>
+<body>
+    <h1>API Test</h1>
+    <button onclick="testAPI()">Test Perenual API</button>
+    <pre id="output"></pre>
+
+    <script>
+        const PERENUAL_API_KEY = "sk-FZ1q6935dcd53ff6513860";
+        const API_BASE_URL = "https://perenual.com/api/v2";
+
+        async function testAPI() {
+            const output = document.getElementById('output');
+            output.textContent = 'Testing...';
+
+            try {
+                // Test 1: Get plant list
+                const listUrl = `${API_BASE_URL}/species-list?key=${PERENUAL_API_KEY}&page=1`;
+                output.textContent += `\n\nTesting: ${listUrl}`;
+
+                const listResponse = await fetch(listUrl);
+                output.textContent += `\nList Response Status: ${listResponse.status}`;
+
+                if (!listResponse.ok) {
+                    const text = await listResponse.text();
+                    output.textContent += `\nError: ${text}`;
+                    return;
+                }
+
+                const listData = await listResponse.json();
+                output.textContent += `\nList Data: ${JSON.stringify(listData, null, 2)}`;
+
+                // Test 2: Get plant details
+                if (listData.data && listData.data.length > 0) {
+                    const plantId = listData.data[0].id;
+                    const detailsUrl = `${API_BASE_URL}/species/details/${plantId}?key=${PERENUAL_API_KEY}`;
+                    output.textContent += `\n\nTesting: ${detailsUrl}`;
+
+                    const detailsResponse = await fetch(detailsUrl);
+                    output.textContent += `\nDetails Response Status: ${detailsResponse.status}`;
+
+                    const detailsData = await detailsResponse.json();
+                    output.textContent += `\nDetails Data: ${JSON.stringify(detailsData, null, 2)}`;
+                }
+            } catch (error) {
+                output.textContent += `\n\nERROR: ${error.message}\n${error.stack}`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- iOS Add to Home Screen -->
+    <link rel="apple-touch-icon" href="https://www.kidsdc.org/PlantApp/MushroomApp.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <!-- Permissions-Policy: Remove browsing-topics as it's not recognized -->
+    <title>Plant & Fungi Browser</title>
+    <!-- Tailwind CSS CDN - Note: For production, use PostCSS plugin or CLI build -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Suppress CDN warning -->
+    <script>
+        // Suppress Tailwind CDN production warning
+        if (window.tailwind && window.tailwind.config) {
+            console.log('Tailwind CSS loaded via CDN (development mode)');
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            padding-bottom: 80px; /* Space for bottom nav */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* Safe area support for iPhone X and newer */
+        @supports (padding: max(0px)) {
+            body {
+                padding-bottom: max(80px, env(safe-area-inset-bottom) + 60px);
+            }
+        }
+        .font-serif { font-family: 'Lora', serif; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #16a34a;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .plant-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .plant-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            display: inline-block;
+            margin: 0.25rem;
+        }
+        .badge-green { background-color: #dcfce7; color: #15803d; }
+        .badge-red { background-color: #fee2e2; color: #b91c1c; }
+        .badge-blue { background-color: #dbeafe; color: #1e40af; }
+        .badge-yellow { background-color: #fef3c7; color: #a16207; }
+        .badge-purple { background-color: #f3e8ff; color: #7e22ce; }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .nav-btn {
+            transition: all 0.2s;
+            min-height: 44px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .nav-btn.active {
+            color: #16a34a;
+        }
+        
+        /* Touch-friendly improvements */
+        button, a, input[type="checkbox"], input[type="radio"] {
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Safe area bottom padding for navigation */
+        .safe-area-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        /* Improve modal on mobile */
+        @media (max-width: 640px) {
+            #detail-panel {
+                border-radius: 1rem 1rem 0 0;
+                max-height: 95vh;
+            }
+            
+            #detail-modal-overlay {
+                align-items: flex-end;
+            }
+        }
+        
+        /* Prevent text selection on buttons */
+        button {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            user-select: none;
+        }
+
+        /* Game Styles */
+        .blurred {
+            filter: blur(20px);
+            transition: filter 0.3s;
+        }
+        
+        .unblurred {
+            filter: none;
+        }
+
+        .memory-card {
+            transition: transform 0.3s;
+        }
+
+        .memory-card.flipped .card-back {
+            display: none !important;
+        }
+
+        .memory-card .card-front {
+            display: none;
+        }
+
+        .memory-card.flipped .card-front {
+            display: block !important;
+        }
+
+        .memory-card.matched {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .quiz-option:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        /* Device Simulator Styles */
+        body.device-sim-active {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            background: #2d3748;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        #app-container {
+            transition: all 0.3s ease;
+        }
+
+        body.device-sim-active #app-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            position: relative;
+        }
+
+        body.device-sim-active #app-container::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 4px;
+            background: #333;
+            border-radius: 10px;
+            z-index: 10000;
+        }
+
+        /* iPhone specific styles */
+        body.device-sim-active.device-iphone #app-container {
+            border: 12px solid #1a1a1a;
+            border-radius: 40px;
+        }
+    </style>
+</head>
+<body class="bg-green-50">
+
+<div id="app-container">
+    <!-- HOME TAB - Original Plant of the Day -->
+    <div id="home-tab" class="tab-content active">
+        <main class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white shadow-lg rounded-lg p-6 md:p-10 max-w-2xl w-full m-4 text-center">
+
+                <div id="home-loading" class="hidden">
+                    <div class="spinner"></div>
+                    <p class="mt-4 text-lg text-gray-600" id="home-loading-text">Finding a new plant friend...</p>
+                </div>
+
+                <div id="home-empty-state" class="text-center text-gray-600 space-y-4">
+                    <h2 class="text-3xl font-bold text-green-800 font-serif">🌿 Welcome to Plant & Fungi Browser</h2>
+                    <p class="text-lg">Discover fascinating plants and mushrooms from around the world!</p>
+                    <p class="text-md text-gray-500">Click a button below to get started</p>
+                    <div class="mt-6 p-6 bg-green-50 rounded-lg border border-green-200">
+                        <p class="text-sm text-green-800 mb-2">✨ <strong>What can you do?</strong></p>
+                        <ul class="text-sm text-left mx-auto max-w-md space-y-2">
+                            <li>🌿 <strong>Random Plant</strong> - Discover a random plant</li>
+                            <li>🍄 <strong>Random Mushroom</strong> - Explore toxic and edible mushrooms</li>
+                            <li>🔍 <strong>Browse Tab</strong> - Search across multiple plant databases</li>
+                            <li>🎮 <strong>Games</strong> - Test your knowledge with fun games</li>
+                            <li>⭐ <strong>Favorites</strong> - Save your favorite discoveries</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div id="home-plant-container" class="hidden opacity-0 transition-opacity duration-1000">
+                    <h1 class="text-4xl font-bold font-serif text-green-800" id="home-plant-common-name"></h1>
+                    <p class="text-lg italic text-gray-500 mb-4" id="home-plant-scientific-name"></p>
+
+                    <div class="flex flex-col md:flex-row gap-6 items-center">
+                        <div class="md:w-1/2">
+                            <img id="home-plant-image" src="" alt="Plant image" loading="lazy" class="rounded-lg shadow-md w-full h-auto object-cover">
+                        </div>
+                        <div class="md:w-1/2 text-left">
+                            <p class="text-base mb-4" id="home-plant-description"></p>
+                            <div id="home-plant-wikipedia" class="mt-4"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+                    <button id="home-random-plant-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 min-h-[44px] touch-manipulation">
+                        🌿 Random Plant
+                    </button>
+                    <button id="home-random-mushroom-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-full transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 min-h-[44px] touch-manipulation">
+                        🍄 Random Mushroom
+                    </button>
+                    <button id="home-favorite-btn" class="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-bold py-3 px-6 rounded-full transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-50 min-h-[44px] touch-manipulation">
+                        ⭐ Add to Favorites
+                    </button>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- BROWSE TAB - Advanced Browser -->
+    <div id="browse-tab" class="tab-content">
+        <div class="container mx-auto px-4 py-6">
+            <h1 class="text-3xl font-bold font-serif text-green-800 text-center mb-6">🌿 Browse Plants</h1>
+
+            <!-- Search & Filter Section -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <!-- Search Type Tabs -->
+                <div class="flex gap-2 mb-4 border-b">
+                    <button id="search-mode-plants" class="search-mode-btn px-4 py-2 font-semibold border-b-2 border-green-600 text-green-700" data-mode="plants">
+                        🌿 Plants
+                    </button>
+                    <button id="search-mode-fungi" class="search-mode-btn px-4 py-2 font-semibold text-gray-600 hover:text-green-700" data-mode="fungi">
+                        🍄 Fungi & Mushrooms
+                    </button>
+                </div>
+
+                <div class="flex flex-col lg:flex-row gap-4 mb-4">
+                    <div class="flex-1">
+                        <input
+                            type="text"
+                            id="search-input"
+                            placeholder="Search plants by name..."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-base"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <button id="search-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg transition min-h-[44px] touch-manipulation">
+                        Search
+                    </button>
+                </div>
+
+                <!-- Fungi Quick Actions (shown when in fungi mode) -->
+                <div id="fungi-quick-actions" class="hidden border-t pt-4 mt-4">
+                    <h3 class="font-semibold text-gray-800 mb-3">🍄 Mushroom Filters</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <label class="flex items-center space-x-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-sm transition cursor-pointer">
+                            <input type="checkbox" id="filter-toxic-all" class="fungi-filter-checkbox rounded" checked>
+                            <span>View All Toxic</span>
+                        </label>
+                        <label class="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition cursor-pointer">
+                            <input type="checkbox" id="filter-toxic-deadly" class="fungi-filter-checkbox rounded">
+                            <span>Deadly Only</span>
+                        </label>
+                        <label class="flex items-center space-x-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm transition cursor-pointer">
+                            <input type="checkbox" id="filter-toxic-poisonous" class="fungi-filter-checkbox rounded">
+                            <span>Poisonous Only</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="border-t pt-4">
+                    <button id="toggle-filters-btn" class="text-green-700 font-semibold mb-3 hover:text-green-800 transition">
+                        <span id="filter-toggle-text">▼ Show Filters</span>
+                    </button>
+
+                    <div id="filters-container" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Plant Type</label>
+                            <label class="flex items-center space-x-2 mb-1">
+                                <input type="checkbox" id="filter-edible" class="filter-checkbox" value="edible">
+                                <span class="text-sm">Edible</span>
+                            </label>
+                            <label class="flex items-center space-x-2 mb-1">
+                                <input type="checkbox" id="filter-poisonous" class="filter-checkbox" value="poisonous">
+                                <span class="text-sm">Poisonous</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="filter-indoor" class="filter-checkbox" value="indoor">
+                                <span class="text-sm">Indoor</span>
+                            </label>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Life Cycle</label>
+                            <select id="filter-cycle" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <option value="">Any</option>
+                                <option value="perennial">Perennial</option>
+                                <option value="annual">Annual</option>
+                                <option value="biennial">Biennial</option>
+                                <option value="biannual">Biannual</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Watering Needs</label>
+                            <select id="filter-watering" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <option value="">Any</option>
+                                <option value="frequent">Frequent</option>
+                                <option value="average">Average</option>
+                                <option value="minimum">Minimum</option>
+                                <option value="none">None</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Sunlight</label>
+                            <select id="filter-sunlight" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <option value="">Any</option>
+                                <option value="full_sun">Full Sun</option>
+                                <option value="part_shade">Part Shade</option>
+                                <option value="full_shade">Full Shade</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button id="apply-filters-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg transition mr-2">
+                            Apply Filters
+                        </button>
+                        <button id="clear-filters-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold px-6 py-2 rounded-lg transition">
+                            Clear All
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="hidden text-center py-10">
+                <div class="spinner"></div>
+                <p class="mt-4 text-lg text-gray-600" id="loading-text">Loading plants...</p>
+            </div>
+
+            <!-- Results Grid -->
+            <div>
+                <div id="results-info" class="mb-4 text-gray-700">
+                    <span id="results-count"></span>
+                </div>
+                <div id="plants-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <!-- Plant cards will be inserted here -->
+                </div>
+
+                <!-- Pagination -->
+                <div id="pagination" class="mt-6 flex flex-col items-center gap-3 hidden">
+                    <div class="flex items-center gap-2">
+                        <button id="prev-page" class="bg-white border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                            ← Previous
+                        </button>
+                        <div class="flex items-center gap-2 px-2">
+                            <span class="text-gray-600 text-sm">Page</span>
+                            <input type="number" id="page-input" min="1" class="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-500" value="1">
+                            <span class="text-gray-600 text-sm">of <span id="total-pages">1</span></span>
+                        </div>
+                        <button id="next-page" class="bg-white border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Next →
+                        </button>
+                    </div>
+                    <div id="page-numbers" class="flex flex-wrap justify-center gap-1">
+                        <!-- Page number buttons will be inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detail Panel Modal -->
+            <div id="detail-modal-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+                <div id="detail-panel" class="bg-white rounded-lg shadow-xl p-4 sm:p-6 max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto hidden flex flex-col relative">
+                    <button id="detail-close-btn" class="absolute top-2 right-2 sm:top-4 sm:right-4 text-gray-500 hover:text-gray-700 text-3xl sm:text-2xl font-bold z-10 w-12 h-12 sm:w-auto sm:h-auto flex items-center justify-center rounded-full hover:bg-gray-100 transition" aria-label="Close">&times;</button>
+                    <div class="text-center mb-4">
+                        <img id="detail-image" src="" alt="Plant" class="w-full h-48 sm:h-64 object-cover rounded-lg mb-4">
+                        <h2 id="detail-name" class="text-2xl sm:text-3xl font-bold font-serif text-green-800 px-2"></h2>
+                        <p id="detail-scientific" class="text-base sm:text-lg italic text-gray-500 mb-2 px-2"></p>
+                        <div id="detail-badges" class="mb-4 px-2">
+                            <!-- Badges for attributes -->
+                        </div>
+                        <button id="detail-favorite-btn" class="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-6 py-3 rounded-lg transition mb-2 min-h-[44px] touch-manipulation">
+                            ⭐ Add to Favorites
+                        </button>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div class="border-b mb-4">
+                        <nav class="flex space-x-1 sm:space-x-2 text-xs sm:text-sm">
+                            <button class="detail-tab active px-3 py-3 sm:px-2 sm:py-2 font-semibold border-b-2 border-green-600 text-green-700 min-h-[44px] touch-manipulation" data-tab="info">
+                                Info
+                            </button>
+                            <button class="detail-tab px-3 py-3 sm:px-2 sm:py-2 font-semibold text-gray-600 hover:text-green-700 min-h-[44px] touch-manipulation" data-tab="care">
+                                Care
+                            </button>
+                            <button class="detail-tab px-3 py-3 sm:px-2 sm:py-2 font-semibold text-gray-600 hover:text-green-700 min-h-[44px] touch-manipulation" data-tab="pests">
+                                Pests
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Tab Content -->
+                    <div id="tab-content" class="text-sm sm:text-base">
+                        <!-- Content will be dynamically loaded -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAVORITES TAB -->
+    <div id="favorites-tab" class="tab-content">
+        <div class="container mx-auto px-4 py-6 min-h-screen">
+            <h1 class="text-3xl font-bold font-serif text-green-800 text-center mb-6">⭐ My Favorite Plants</h1>
+            <div id="favorites-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Favorite plants will be dynamically added here -->
+            </div>
+            <div id="favorites-empty" class="hidden text-center py-20">
+                <svg class="w-32 h-32 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                </svg>
+                <p class="text-xl text-gray-500 mb-4">No favorites yet</p>
+                <p class="text-gray-400">Add plants to your favorites from the Home or Browse tabs</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAMES TAB -->
+    <div id="games-tab" class="tab-content">
+        <div class="container mx-auto px-4 py-6 min-h-screen">
+            <h1 class="text-3xl font-bold font-serif text-green-800 text-center mb-2">🎮 Plant & Fungi Games</h1>
+            <p class="text-center text-gray-600 mb-6">Test your knowledge with fun games!</p>
+            
+            <div id="game-menu" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <button id="btn-guess-game" class="bg-gradient-to-br from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    🖼️ Guess the Plant
+                </button>
+                <button id="btn-memory-game" class="bg-gradient-to-br from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    🧠 Memory Match
+                </button>
+                <button id="btn-quiz-game" class="bg-gradient-to-br from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    ❓ Plant Quiz
+                </button>
+                <button id="btn-typing-game" class="bg-gradient-to-br from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    ⌨️ Type the Plant
+                </button>
+                <button id="btn-speed-match-game" class="bg-gradient-to-br from-red-400 to-red-600 hover:from-red-500 hover:to-red-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    ⚡ Speed Match
+                </button>
+                <button id="btn-scramble-game" class="bg-gradient-to-br from-indigo-400 to-indigo-600 hover:from-indigo-500 hover:to-indigo-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    🔤 Word Scramble
+                </button>
+                <button id="btn-truefalse-game" class="bg-gradient-to-br from-pink-400 to-pink-600 hover:from-pink-500 hover:to-pink-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    ✓ True or False
+                </button>
+                <button id="btn-alphabet-game" class="bg-gradient-to-br from-teal-400 to-teal-600 hover:from-teal-500 hover:to-teal-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    🔤 Alphabet Challenge
+                </button>
+                <button id="btn-flashcard-game" class="bg-gradient-to-br from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white px-6 py-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
+                    🃏 Flash Cards
+                </button>
+            </div>
+            
+            <div id="game-display" class="bg-white rounded-lg shadow-lg p-6 min-h-[400px] hidden">
+                <!-- Game content will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- FUNGI/MUSHROOM TAB - REMOVED, NOW INTEGRATED INTO BROWSE TAB -->
+    <div id="fungi-tab" class="tab-content" style="display:none !important;">
+        <div class="container mx-auto px-4 py-6">
+            <h1 class="text-3xl font-bold font-serif text-green-800 text-center mb-6">🍄 Fungi & Mushrooms</h1>
+
+            <!-- Fungi Search -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <div class="flex flex-col lg:flex-row gap-4 mb-4">
+                    <div class="flex-1">
+                        <input
+                            type="text"
+                            id="fungi-search-input"
+                            placeholder="Search fungi and mushrooms..."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        >
+                    </div>
+                    <button id="fungi-search-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg transition">
+                        Search Fungi
+                    </button>
+                    <button id="fungi-random-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg transition">
+                        Random Mushroom
+                    </button>
+                </div>
+
+                <!-- Toxic Mushrooms Quick Access -->
+                <div class="border-t pt-4 mt-4">
+                    <h3 class="font-semibold text-gray-800 mb-3">⚠️ Toxic Mushrooms Database</h3>
+                    <div class="flex gap-2">
+                        <button id="toxic-all-btn" class="bg-red-100 hover:bg-red-200 text-red-800 px-4 py-2 rounded-lg text-sm transition">
+                            View All Toxic
+                        </button>
+                        <button id="toxic-deadly-btn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition">
+                            Deadly Only
+                        </button>
+                        <button id="toxic-poisonous-btn" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm transition">
+                            Poisonous Only
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Data Source Indicators -->
+                <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded">🔬 iNaturalist</span>
+                    <span class="px-2 py-1 bg-red-100 text-red-800 rounded">☠️ Toxic Shrooms DB</span>
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="fungi-loading" class="hidden text-center py-10">
+                <div class="spinner"></div>
+                <p class="mt-4 text-lg text-gray-600">Searching fungi databases...</p>
+            </div>
+
+            <!-- Fungi Results Grid -->
+            <div id="fungi-results-section" class="hidden">
+                <div class="mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800" id="fungi-results-title">Search Results</h2>
+                    <p class="text-sm text-gray-600" id="fungi-results-count"></p>
+                </div>
+                <div id="fungi-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <!-- Fungi cards will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="fungi-empty" class="text-center py-20">
+                <svg class="w-32 h-32 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <p class="text-xl text-gray-500 mb-4">Search for fungi and mushrooms</p>
+                <p class="text-gray-400">Explore toxic mushrooms, observations, and species from multiple databases</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Full Screen Plant Modal -->
+    <div id="plant-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+        <div class="min-h-screen px-4 py-8">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl mx-auto relative">
+                <!-- Close Button -->
+                <button id="modal-close-btn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-10">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+
+                <div class="p-6 md:p-10">
+                    <!-- Modal Header -->
+                    <div class="text-center mb-6">
+                        <img id="modal-plant-image" src="" alt="Plant" class="w-full max-h-96 object-cover rounded-lg mb-4">
+                        <h2 id="modal-plant-name" class="text-3xl font-bold font-serif text-green-800"></h2>
+                        <p id="modal-plant-scientific" class="text-lg italic text-gray-500 mb-3"></p>
+                        <div id="modal-plant-badges" class="mb-4">
+                            <!-- Badges -->
+                        </div>
+                        <button id="modal-favorite-btn" class="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-6 py-3 rounded-lg transition">
+                            ⭐ Add to Favorites
+                        </button>
+                    </div>
+
+                    <!-- Modal Tabs -->
+                    <div class="border-b mb-6">
+                        <nav class="flex space-x-4 justify-center">
+                            <button class="modal-tab active px-4 py-2 font-semibold border-b-2 border-green-600 text-green-700" data-tab="info">
+                                Info
+                            </button>
+                            <button class="modal-tab px-4 py-2 font-semibold text-gray-600 hover:text-green-700" data-tab="care">
+                                Care
+                            </button>
+                            <button class="modal-tab px-4 py-2 font-semibold text-gray-600 hover:text-green-700" data-tab="pests">
+                                Pests
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Modal Tab Content -->
+                    <div id="modal-tab-content" class="text-base max-h-96 overflow-y-auto">
+                        <!-- Content will be dynamically loaded -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Developer Panel (Option+T) -->
+    <div id="dev-panel" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 overflow-y-auto">
+        <div class="min-h-screen p-4">
+            <div class="bg-gray-900 text-green-400 rounded-lg shadow-xl max-w-4xl mx-auto p-6 font-mono text-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-green-300">🛠️ Developer Mode</h2>
+                    <button id="dev-panel-close" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="border border-green-700 rounded p-4">
+                        <h3 class="text-green-300 font-semibold mb-2">Current State</h3>
+                        <pre id="dev-state" class="whitespace-pre-wrap text-xs"></pre>
+                    </div>
+
+                    <div class="border border-green-700 rounded p-4">
+                        <h3 class="text-green-300 font-semibold mb-2">Local Storage</h3>
+                        <pre id="dev-storage" class="whitespace-pre-wrap text-xs"></pre>
+                    </div>
+
+                    <div class="border border-green-700 rounded p-4">
+                        <h3 class="text-green-300 font-semibold mb-2">Performance</h3>
+                        <pre id="dev-performance" class="whitespace-pre-wrap text-xs"></pre>
+                    </div>
+
+                    <div class="border border-green-700 rounded p-4">
+                        <h3 class="text-green-300 font-semibold mb-2">Actions</h3>
+                        <div class="space-x-2 space-y-2">
+                            <button id="dev-clear-cache" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">
+                                Clear Cache
+                            </button>
+                            <button id="dev-clear-favorites" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">
+                                Clear Favorites
+                            </button>
+                            <button id="dev-export-data" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                                Export Data
+                            </button>
+                            <button id="dev-toggle-mobile" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">
+                                📱 Toggle iPhone View
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="border border-green-700 rounded p-4">
+                        <h3 class="text-green-300 font-semibold mb-2">📱 Device Simulator</h3>
+                        <div class="space-y-2">
+                            <button class="device-sim-btn w-full bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-left" data-device="iphone-14-pro">
+                                📱 iPhone 14 Pro (393×852)
+                            </button>
+                            <button class="device-sim-btn w-full bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-left" data-device="iphone-se">
+                                📱 iPhone SE (375×667)
+                            </button>
+                            <button class="device-sim-btn w-full bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-left" data-device="ipad">
+                                📱 iPad (768×1024)
+                            </button>
+                            <button class="device-sim-btn w-full bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-left" data-device="desktop">
+                                🖥️ Desktop (Reset)
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2" id="current-viewport"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 safe-area-bottom">
+        <div class="flex justify-around items-center h-16 safe-area-bottom">
+            <button class="nav-btn active flex flex-col items-center justify-center flex-1 h-full min-h-[44px]" data-tab="home">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                </svg>
+                <span class="text-xs font-semibold">Home</span>
+            </button>
+            <button class="nav-btn flex flex-col items-center justify-center flex-1 h-full text-gray-500 min-h-[44px]" data-tab="browse">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <span class="text-xs font-semibold">Browse</span>
+            </button>
+            <button class="nav-btn flex flex-col items-center justify-center flex-1 h-full text-gray-500 min-h-[44px]" data-tab="games">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="text-xs font-semibold">Games</span>
+            </button>
+            <button class="nav-btn flex flex-col items-center justify-center flex-1 h-full text-gray-500 min-h-[44px]" data-tab="favorites">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                </svg>
+                <span class="text-xs font-semibold">Favorites</span>
+            </button>
+        </div>
+    </nav>
+</div><!-- #app-container -->
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
