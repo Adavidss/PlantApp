@@ -2258,6 +2258,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- NAVIGATION ---
 
     function switchTab(tabName) {
+        // Close any open modals and restore body overflow
+        closeDetailModal();
+        
         // Hide all tabs
         document.querySelectorAll('.tab-content').forEach(tab => {
             tab.classList.remove('active');
@@ -4017,7 +4020,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="text-gray-600">Score: <strong class="text-pink-800">${trueFalseScore}</strong> | Round: ${trueFalseRound}</p>
                 </div>
 
-                <button onclick="backToGameMenu()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold" id="truefalse-next" style="display: none;">
+                <button onclick="nextTrueFalseQuestion()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold" id="truefalse-next" style="display: none;">
                     ⏭️ Next Question
                 </button>
             </div>
@@ -4047,9 +4050,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (nextBtn) nextBtn.style.display = 'block';
-        setTimeout(() => {
-            showTrueFalseRound();
-        }, 2000);
+    }
+
+    function nextTrueFalseQuestion() {
+        showTrueFalseRound();
     }
 
     // GAME 8: ALPHABET CHALLENGE
@@ -4406,6 +4410,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.showScrambleGameRound = showScrambleGameRound;
     window.selectTrueFalse = selectTrueFalse;
     window.showTrueFalseRound = showTrueFalseRound;
+    window.nextTrueFalseQuestion = nextTrueFalseQuestion;
     window.checkAlphabetAnswer = checkAlphabetAnswer;
     window.showAlphabetRound = showAlphabetRound;
     window.flipFlashCard = flipFlashCard;
