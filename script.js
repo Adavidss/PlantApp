@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const age = now - parseInt(cacheTime);
             if (age < 86400000) { // 24 hours
                 console.log(`📡 getPlantDetails: ✅ Using cached data for plant ${plantId} (age: ${Math.round(age / 1000 / 60)} minutes)`);
-                return JSON.parse(cached);
+            return JSON.parse(cached);
             } else {
                 console.log(`📡 getPlantDetails: Cache expired for plant ${plantId} (age: ${Math.round(age / 1000 / 60 / 60)} hours)`);
             }
@@ -859,7 +859,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const imgSrc = plant.image_url || plant.default_image?.small_url || plant.default_image?.thumbnail || PLACEHOLDER_IMG;
         const wikiUrl = plant.wikipedia_url || getWikipediaUrl(plant.common_name) || getWikipediaUrl(plant.scientific_name);
         const wikiLink = wikiUrl ? `<a href="${wikiUrl}" target="_blank" class="text-blue-600 hover:underline text-xs mt-2 inline-block">📖 Wikipedia Article</a>` : '';
-        
+
         card.innerHTML = `
             <img src="${imgSrc}"
                  alt="${plant.common_name}"
@@ -983,6 +983,15 @@ document.addEventListener('DOMContentLoaded', () => {
      * Handles different data sources appropriately
      */
     async function loadPlantDetails(plantId, source = null) {
+        // Check if mobile view (screen width < 640px)
+        const isMobile = window.innerWidth < 640;
+        
+        if (isMobile) {
+            // Use mobile detail view
+            return loadPlantDetailsMobile(plantId, source);
+        }
+        
+        // Desktop: use modal
         const detailPanel = document.getElementById('detail-panel');
         const overlay = document.getElementById('detail-modal-overlay');
 
@@ -994,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.style.overflow = 'hidden';
             }
             if (detailPanel) {
-                detailPanel.classList.remove('hidden');
+            detailPanel.classList.remove('hidden');
                 const tabContent = document.getElementById('tab-content');
                 if (tabContent) tabContent.innerHTML = '<div class="text-center py-4"><div class="spinner mx-auto"></div></div>';
             }
@@ -1075,6 +1084,189 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('tab-content').innerHTML = '<div class="text-red-500 text-center py-4">Error loading details</div>';
         }
     }
+
+    async function loadPlantDetailsMobile(plantId, source = null) {
+        const mobileView = document.getElementById('mobile-detail-view');
+        const browseContent = document.getElementById('browse-content');
+        
+        try {
+            // Hide browse content and show mobile detail view
+            if (browseContent) browseContent.classList.add('hidden');
+            if (mobileView) {
+                mobileView.classList.remove('hidden');
+                const tabContent = document.getElementById('mobile-tab-content');
+                if (tabContent) tabContent.innerHTML = '<div class="text-center py-4"><div class="spinner mx-auto"></div></div>';
+            }
+
+            let plant;
+            
+            // Check if we have cached data from a non-Perenual source
+            const cachedPlant = plantCache.get(plantId);
+            const plantSource = source || cachedPlant?.source || 'perenual';
+            
+            if (plantSource === 'perenual' && typeof plantId === 'number') {
+                // Fetch full details from Perenual API
+                plant = await getPlantDetails(plantId);
+            } else {
+                // Use cached data for other sources
+                if (!cachedPlant) {
+                    const favorite = favorites.find(f => f.id === plantId);
+                    if (favorite) {
+                        plant = favorite;
+                        plantCache.set(plantId, favorite);
+                    } else {
+                        plant = { id: plantId, common_name: 'Unknown', scientific_name: 'N/A', source: plantSource };
+                    }
+                } else {
+                    plant = cachedPlant;
+                }
+            }
+            
+            selectedPlant = plant;
+
+            // Update header
+            const detailImage = document.getElementById('mobile-detail-image');
+            if (detailImage) {
+                detailImage.src = plant.image_url || PLACEHOLDER_IMG;
+                detailImage.onerror = function() { handleImageError(this); };
+            }
+            document.getElementById('mobile-detail-name').textContent = plant.common_name || 'Unknown';
+            document.getElementById('mobile-detail-scientific').textContent = plant.scientific_name || 'N/A';
+
+            // Update badges based on source
+            const badgesDiv = document.getElementById('mobile-detail-badges');
+            const badges = [];
+            
+            // Source badge
+            const sourceBadgeMap = {
+                'perenual': '<span class="badge bg-green-100 text-green-800">🌿 Perenual</span>',
+                'trefle': '<span class="badge bg-blue-100 text-blue-800">🍀 Trefle</span>',
+                'inaturalist': '<span class="badge bg-purple-100 text-purple-800">🔬 iNaturalist</span>',
+                'gbif': '<span class="badge bg-gray-100 text-gray-800">🌍 GBIF</span>',
+                'toxicshrooms': '<span class="badge bg-red-100 text-red-800">☠️ Toxic Shrooms</span>',
+                'mushroomobserver': '<span class="badge bg-orange-100 text-orange-800">🍄 Mushroom Observer</span>'
+            };
+            if (sourceBadgeMap[plantSource]) badges.push(sourceBadgeMap[plantSource]);
+            
+            // Attribute badges based on available data
+            if (plant.edible_fruit || plant.edible_leaf || plant.edible) badges.push('<span class="badge badge-green">🍃 Edible</span>');
+            if (plant.poisonous_to_humans > 0 || plant.toxicity_type) badges.push('<span class="badge badge-red">☠️ Toxic</span>');
+            if (plant.poisonous_to_pets > 0) badges.push('<span class="badge badge-red">⚠️ Toxic to Pets</span>');
+            if (plant.indoor) badges.push('<span class="badge badge-blue">🏠 Indoor</span>');
+            if (plant.medicinal) badges.push('<span class="badge badge-purple">💊 Medicinal</span>');
+            if (plant.invasive) badges.push('<span class="badge badge-yellow">⚡ Invasive</span>');
+            if (plant.threatened) badges.push('<span class="badge badge-red">🔴 Threatened</span>');
+            if (plant.endemic) badges.push('<span class="badge badge-yellow">📍 Endemic</span>');
+            badgesDiv.innerHTML = badges.join('');
+
+            // Update tabs based on source
+            updateMobileDetailTabs(plantSource);
+
+            // Update favorite button state
+            updateMobileFavoriteButton();
+
+            // Load default tab (Info)
+            loadMobileTab('info');
+        } catch (error) {
+            console.error('Error loading plant details (mobile):', error);
+            document.getElementById('mobile-tab-content').innerHTML = '<div class="text-red-500 text-center py-4">Error loading details</div>';
+        }
+    }
+
+    function closeMobileDetailView() {
+        const mobileView = document.getElementById('mobile-detail-view');
+        const browseContent = document.getElementById('browse-content');
+        
+        if (mobileView) mobileView.classList.add('hidden');
+        if (browseContent) browseContent.classList.remove('hidden');
+    }
+
+    function updateMobileDetailTabs(source) {
+        const tabNav = document.querySelector('#mobile-detail-view nav > div');
+        
+        // Define tabs for each source
+        const tabConfigs = {
+            'perenual': [
+                { id: 'info', label: 'Info' },
+                { id: 'care', label: 'Care' },
+                { id: 'pests', label: 'Pests' }
+            ],
+            'inaturalist': [
+                { id: 'info', label: 'Info' },
+                { id: 'taxonomy', label: 'Taxonomy' },
+                { id: 'observations', label: 'Observations' }
+            ],
+            'toxicshrooms': [
+                { id: 'info', label: 'Info' },
+                { id: 'toxicity', label: 'Toxicity' },
+                { id: 'safety', label: 'Safety' }
+            ]
+        };
+        
+        const tabs = tabConfigs[source] || tabConfigs['perenual'];
+        
+        if (tabNav) {
+            tabNav.innerHTML = tabs.map(tab => `
+                <button class="mobile-detail-tab px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-semibold min-h-[44px] touch-manipulation ${tab.id === 'info' ? 'active border-green-600 text-green-600' : ''}" data-tab="${tab.id}">${tab.label}</button>
+            `).join('');
+            
+            // Attach event listeners
+            tabNav.querySelectorAll('.mobile-detail-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Update active state
+                    tabNav.querySelectorAll('.mobile-detail-tab').forEach(b => {
+                        b.classList.remove('active', 'border-green-600', 'text-green-600');
+                        b.classList.add('border-transparent', 'text-gray-500');
+                    });
+                    btn.classList.add('active', 'border-green-600', 'text-green-600');
+                    btn.classList.remove('border-transparent', 'text-gray-500');
+                    
+                    // Load tab content
+                    loadMobileTab(btn.dataset.tab);
+                });
+            });
+        }
+    }
+
+    function loadMobileTab(tabName) {
+        // Use the same loadTab logic but for mobile
+        loadTab(tabName, 'mobile-tab-content');
+    }
+
+    function updateMobileFavoriteButton() {
+        const btn = document.getElementById('mobile-detail-favorite-btn');
+        if (!btn || !selectedPlant) return;
+        
+        const isFavorite = favorites.some(f => f.id === selectedPlant.id);
+        if (isFavorite) {
+            btn.textContent = '🗑️ Remove from Favorites';
+            btn.classList.remove('bg-yellow-400', 'hover:bg-yellow-500');
+            btn.classList.add('bg-red-500', 'hover:bg-red-600', 'text-white');
+        } else {
+            btn.textContent = '⭐ Add to Favorites';
+            btn.classList.remove('bg-red-500', 'hover:bg-red-600', 'text-white');
+            btn.classList.add('bg-yellow-400', 'hover:bg-yellow-500');
+        }
+    }
+
+    function toggleMobileFavorite() {
+        if (!selectedPlant) return;
+
+        const isFavorite = favorites.some(fav => fav.id === selectedPlant.id);
+
+        if (isFavorite) {
+            // No confirmation popup as per user request
+            removeFavorite(selectedPlant.id);
+        } else {
+            favorites.push(selectedPlant);
+            localStorage.setItem('plantFavorites', JSON.stringify(favorites));
+            updateFavoritesUI();
+        }
+
+        updateMobileFavoriteButton();
+        // Also update desktop button if modal is open
+        updateFavoriteButton();
+    }
     
     /**
      * Get taxon ID for a category name (searches iNaturalist if not in known list)
@@ -1116,7 +1308,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return null;
     }
-
+    
     /**
      * Search by iNaturalist category (taxon)
      */
@@ -1211,20 +1403,36 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Loads content for a specific tab
      */
-    async function loadTab(tabName) {
-        const tabContent = document.getElementById('tab-content');
+    async function loadTab(tabName, containerId = 'tab-content') {
+        const tabContent = document.getElementById(containerId);
         const plant = selectedPlant;
 
         if (!plant) return;
 
-        // Update active tab styling
+        // Update active tab styling (for both desktop and mobile)
+        if (containerId === 'tab-content') {
+            // Desktop tabs
         document.querySelectorAll('.detail-tab').forEach(tab => {
             tab.classList.remove('active', 'border-b-2', 'border-green-600', 'text-green-700');
             tab.classList.add('text-gray-600');
         });
-        const activeTab = document.querySelector(`[data-tab="${tabName}"]`);
+            const activeTab = document.querySelector(`.detail-tab[data-tab="${tabName}"]`);
+            if (activeTab) {
         activeTab.classList.add('active', 'border-b-2', 'border-green-600', 'text-green-700');
         activeTab.classList.remove('text-gray-600');
+            }
+        } else {
+            // Mobile tabs
+            document.querySelectorAll('.mobile-detail-tab').forEach(tab => {
+                tab.classList.remove('active', 'border-green-600', 'text-green-600');
+                tab.classList.add('border-transparent', 'text-gray-500');
+            });
+            const activeTab = document.querySelector(`.mobile-detail-tab[data-tab="${tabName}"]`);
+            if (activeTab) {
+                activeTab.classList.add('active', 'border-green-600', 'text-green-600');
+                activeTab.classList.remove('border-transparent', 'text-gray-500');
+            }
+        }
 
         switch(tabName) {
             case 'info':
@@ -1394,13 +1602,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (plant.rank && plant.rank !== 'N/A') taxonomyContent += `<p><strong>Rank:</strong> ${plant.rank}</p>`;
                     } else {
                         // For other sources, show as regular text
-                        if (plant.kingdom && plant.kingdom !== 'N/A') taxonomyContent += `<p><strong>Kingdom:</strong> ${plant.kingdom}</p>`;
-                        if (plant.phylum && plant.phylum !== 'N/A') taxonomyContent += `<p><strong>Phylum:</strong> ${plant.phylum}</p>`;
-                        if (plant.class && plant.class !== 'N/A') taxonomyContent += `<p><strong>Class:</strong> ${plant.class}</p>`;
-                        if (plant.order && plant.order !== 'N/A') taxonomyContent += `<p><strong>Order:</strong> ${plant.order}</p>`;
-                        if (plant.family && plant.family !== 'N/A') taxonomyContent += `<p><strong>Family:</strong> ${plant.family}</p>`;
-                        if (plant.genus && plant.genus !== 'N/A') taxonomyContent += `<p><strong>Genus:</strong> ${plant.genus}</p>`;
-                        if (plant.rank && plant.rank !== 'N/A') taxonomyContent += `<p><strong>Rank:</strong> ${plant.rank}</p>`;
+                    if (plant.kingdom && plant.kingdom !== 'N/A') taxonomyContent += `<p><strong>Kingdom:</strong> ${plant.kingdom}</p>`;
+                    if (plant.phylum && plant.phylum !== 'N/A') taxonomyContent += `<p><strong>Phylum:</strong> ${plant.phylum}</p>`;
+                    if (plant.class && plant.class !== 'N/A') taxonomyContent += `<p><strong>Class:</strong> ${plant.class}</p>`;
+                    if (plant.order && plant.order !== 'N/A') taxonomyContent += `<p><strong>Order:</strong> ${plant.order}</p>`;
+                    if (plant.family && plant.family !== 'N/A') taxonomyContent += `<p><strong>Family:</strong> ${plant.family}</p>`;
+                    if (plant.genus && plant.genus !== 'N/A') taxonomyContent += `<p><strong>Genus:</strong> ${plant.genus}</p>`;
+                    if (plant.rank && plant.rank !== 'N/A') taxonomyContent += `<p><strong>Rank:</strong> ${plant.rank}</p>`;
                     }
 
                     // Add anchor categories for iNaturalist
@@ -1652,9 +1860,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 removeBtn.setAttribute('data-plant-id', fav.id);
                 removeBtn.setAttribute('title', 'Remove from favorites');
                 removeBtn.innerHTML = `
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                    </svg>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
                 `;
                 newCard.appendChild(removeBtn);
 
@@ -1676,7 +1884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Remove button click handler - no confirmation popup
                 removeBtn.addEventListener('click', (e) => {
                     e.stopPropagation(); // Prevent card click
-                    removeFavorite(fav.id);
+                        removeFavorite(fav.id);
                 });
 
                 favoritesGrid.appendChild(newCard);
@@ -2005,25 +2213,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             loadingDiv.classList.remove('hidden');
-            loadingText.textContent = 'Searching Perenual...';
+                loadingText.textContent = 'Searching Perenual...';
 
-            const filters = { ...currentFilters };
-            if (currentSearch) filters.search = currentSearch;
+                const filters = { ...currentFilters };
+                if (currentSearch) filters.search = currentSearch;
 
-            const data = await getPlantList(page, filters);
-            lastPageData = data;
-            currentPage = page;
+                const data = await getPlantList(page, filters);
+                lastPageData = data;
+                currentPage = page;
 
-            // Add source field to list results for badge display
-            const plantsWithSource = data.data.map(plant => ({
-                ...plant,
-                source: 'perenual'
-            }));
+                // Add source field to list results for badge display
+                const plantsWithSource = data.data.map(plant => ({
+                    ...plant,
+                    source: 'perenual'
+                }));
 
-            renderPlantsGrid(plantsWithSource);
-            updatePagination(data.current_page, data.last_page, data.total);
+                renderPlantsGrid(plantsWithSource);
+                updatePagination(data.current_page, data.last_page, data.total);
 
-            document.getElementById('results-count').textContent = `Found ${data.total} plants from Perenual`;
+                document.getElementById('results-count').textContent = `Found ${data.total} plants from Perenual`;
         } catch (error) {
             console.error('Search error:', error);
             document.getElementById('plants-grid').innerHTML = '<div class="col-span-2 text-center text-red-500 py-10">Error loading plants. Please try again.</div>';
@@ -2126,6 +2334,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('detail-favorite-btn').addEventListener('click', toggleDetailPanelFavorite);
+
+    // Mobile detail view event listeners
+    document.getElementById('mobile-detail-close-btn')?.addEventListener('click', closeMobileDetailView);
+    document.getElementById('mobile-detail-favorite-btn')?.addEventListener('click', toggleMobileFavorite);
 
     document.getElementById('toggle-filters-btn').addEventListener('click', () => {
         const container = document.getElementById('filters-container');
@@ -2260,6 +2472,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function switchTab(tabName) {
         // Close any open modals and restore body overflow
         closeDetailModal();
+        // Also close mobile detail view if open
+        closeMobileDetailView();
         
         // Hide all tabs
         document.querySelectorAll('.tab-content').forEach(tab => {
@@ -2388,13 +2602,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (formattedFungi.source === 'toxicshrooms' && formattedFungi.toxicity_type) {
                     const warningHtml = `
                         <div class="bg-red-50 p-4 rounded-lg border-2 border-red-200 mt-4">
-                            <h3 class="text-lg font-semibold text-red-800 mb-2">⚠️ TOXIC MUSHROOM WARNING</h3>
-                            <p class="text-red-900 mb-2"><strong>Toxicity Level:</strong> ${formattedFungi.toxicity_type?.toUpperCase() || 'POISONOUS'}</p>
-                            <p class="text-red-900 mb-2"><strong>Toxic Agent:</strong> ${formattedFungi.toxic_agent || 'Unknown toxins'}</p>
-                            <p class="text-red-800 mb-2"><strong>Distribution:</strong> ${formattedFungi.distribution || 'Various locations'}</p>
-                            <p class="text-sm text-red-700 mt-3 italic font-semibold">⚠️ This mushroom is dangerous. Never consume wild mushrooms without expert identification.</p>
-                        </div>
-                    `;
+                    <h3 class="text-lg font-semibold text-red-800 mb-2">⚠️ TOXIC MUSHROOM WARNING</h3>
+                    <p class="text-red-900 mb-2"><strong>Toxicity Level:</strong> ${formattedFungi.toxicity_type?.toUpperCase() || 'POISONOUS'}</p>
+                    <p class="text-red-900 mb-2"><strong>Toxic Agent:</strong> ${formattedFungi.toxic_agent || 'Unknown toxins'}</p>
+                    <p class="text-red-800 mb-2"><strong>Distribution:</strong> ${formattedFungi.distribution || 'Various locations'}</p>
+                    <p class="text-sm text-red-700 mt-3 italic font-semibold">⚠️ This mushroom is dangerous. Never consume wild mushrooms without expert identification.</p>
+                </div>
+            `;
                     descriptionHtml += warningHtml;
                 }
                 
@@ -2428,16 +2642,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Show error - with safety checks
             if (emptyState) {
-                emptyState.classList.remove('hidden');
-                emptyState.innerHTML = `
-                    <div class="text-center text-red-600 space-y-4">
-                        <h2 class="text-2xl font-bold">⚠️ Error</h2>
-                        <p class="text-lg">Could not fetch a random mushroom. Please try again!</p>
-                        <div class="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
-                            <p class="text-sm text-red-800">The mushroom database might be temporarily unavailable.</p>
-                        </div>
+            emptyState.classList.remove('hidden');
+            emptyState.innerHTML = `
+                <div class="text-center text-red-600 space-y-4">
+                    <h2 class="text-2xl font-bold">⚠️ Error</h2>
+                    <p class="text-lg">Could not fetch a random mushroom. Please try again!</p>
+                    <div class="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
+                        <p class="text-sm text-red-800">The mushroom database might be temporarily unavailable.</p>
                     </div>
-                `;
+                </div>
+            `;
             } else {
                 console.error('emptyState element not found');
             }
@@ -2445,8 +2659,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (loadingDiv) loadingDiv.classList.add('hidden');
             if (plantContainer) plantContainer.classList.add('hidden');
             if (randomBtn) {
-                randomBtn.disabled = false;
-                randomBtn.textContent = '🍄 Random Mushroom';
+            randomBtn.disabled = false;
+            randomBtn.textContent = '🍄 Random Mushroom';
             }
             if (favoriteBtn) favoriteBtn.disabled = false;
             homeRequestInProgress = false;
@@ -2612,7 +2826,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const totalPages = Math.ceil(formattedFungi.length / 10);
                     updatePagination(page, totalPages, formattedFungi.length);
                 } else {
-                    document.getElementById('pagination').classList.add('hidden');
+                document.getElementById('pagination').classList.add('hidden');
                 }
             }
         } catch (error) {
@@ -2688,10 +2902,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const totalPages = Math.ceil(totalFungi / 10);
                     updatePagination(page, totalPages, totalFungi);
                 } else {
-                    document.getElementById('pagination').classList.add('hidden');
+                document.getElementById('pagination').classList.add('hidden');
                 }
-            } else {
-                document.getElementById('plants-grid').innerHTML = '<div class="col-span-2 text-center text-gray-500 py-10">No fungi found. Try different search terms.</div>';
+                } else {
+                    document.getElementById('plants-grid').innerHTML = '<div class="col-span-2 text-center text-gray-500 py-10">No fungi found. Try different search terms.</div>';
                 document.getElementById('pagination').classList.add('hidden');
             }
         } catch (error) {

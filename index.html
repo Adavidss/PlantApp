@@ -431,7 +431,7 @@
             </div>
 
             <!-- Results Grid -->
-            <div>
+            <div id="browse-content">
                 <div id="results-info" class="mb-4 text-gray-700">
                     <span id="results-count"></span>
                 </div>
@@ -457,6 +457,34 @@
                     <div id="page-numbers" class="flex flex-wrap justify-center gap-1">
                         <!-- Page number buttons will be inserted here -->
                     </div>
+                </div>
+            </div>
+
+            <!-- Mobile Detail View (replaces browse content on mobile) -->
+            <div id="mobile-detail-view" class="hidden sm:hidden fixed inset-0 bg-white z-40 overflow-y-auto" style="padding-top: env(safe-area-inset-top); padding-bottom: calc(64px + env(safe-area-inset-bottom));">
+                <button id="mobile-detail-close-btn" class="fixed top-4 right-4 z-50 bg-black text-white w-10 h-10 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg" aria-label="Close" style="top: calc(env(safe-area-inset-top) + 1rem);">
+                    ×
+                </button>
+                <div class="text-center mb-4 pt-4">
+                    <img id="mobile-detail-image" src="" alt="Plant" class="w-full h-48 object-cover mb-4">
+                    <h2 id="mobile-detail-name" class="text-2xl font-bold font-serif text-green-800 px-2"></h2>
+                    <p id="mobile-detail-scientific" class="text-base italic text-gray-500 mb-2 px-2"></p>
+                    <div id="mobile-detail-badges" class="mb-4 px-2">
+                        <!-- Badges for attributes -->
+                    </div>
+                    <button id="mobile-detail-favorite-btn" class="bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-6 py-3 rounded-lg transition mb-2 min-h-[44px] touch-manipulation">
+                        ⭐ Add to Favorites
+                    </button>
+                </div>
+                <nav class="border-b border-gray-200 mb-4 px-4">
+                    <div class="flex space-x-4 overflow-x-auto">
+                        <button class="mobile-detail-tab active px-4 py-2 border-b-2 border-green-600 text-green-600 font-semibold min-h-[44px] touch-manipulation" data-tab="info">Info</button>
+                        <button class="mobile-detail-tab px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-semibold min-h-[44px] touch-manipulation" data-tab="care">Care</button>
+                        <button class="mobile-detail-tab px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-semibold min-h-[44px] touch-manipulation" data-tab="pests">Pests</button>
+                    </div>
+                </nav>
+                <div id="mobile-tab-content" class="px-4 pb-8">
+                    <!-- Tab content will be inserted here -->
                 </div>
             </div>
 
